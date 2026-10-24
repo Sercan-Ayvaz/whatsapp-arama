@@ -1,0 +1,95 @@
+name: Derle ve Yayinla
+
+on:
+  workflow_dispatch:      # elle test icin
+  push:
+    tags: ["v*"]          # v1.0 gibi bir etiket itilince yayin da yapar
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python paketlerini kur
+        run: pip install pyinstaller pytesseract pillow
+
+      - name: Tesseract kur
+        run: choco install tesseract --no-progress -y
+
+      - name: Turkce dil verisini ekle
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tur.traineddata" -OutFile "C:\Program Files\Tesseract-OCR\tessdata\tur.traineddata"
+
+      - name: Uygulamayi derle
+        run: pyinstaller --noconfirm --windowed --name WhatsAppArama whatsapp-arama.py
+
+      - name: Tesseract'i uygulamanin yanina kopyala
+        shell: pwsh
+        run: Copy-Item "C:\Program Files\Tesseract-OCR" "dist\WhatsAppArama\tesseract" -Recurse
+
+      - name: Inno Setup kur
+        run: choco install innosetup --no-progress -y
+
+      - name: Kurulum dosyasini olustur
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: Tasinabilir zip olustur
+        shell: pwsh
+        run: Compress-Archive -Path "dist\WhatsAppArama" -DestinationPath "output\WhatsAppArama-Windows-Tasinabilir.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            output/WhatsAppArama-Windows-Kurulum.exe
+            output/WhatsAppArama-Windows-Tasinabilir.zip
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python paketlerini kur
+        run: pip install pyinstaller pytesseract pillow
+
+      - name: Uygulamayi derle
+        run: pyinstaller --noconfirm --onefile --windowed --name WhatsAppArama whatsapp-arama.py
+
+      - name: Paketle
+        run: tar -czf WhatsAppArama-Linux.tar.gz -C dist WhatsAppArama
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: WhatsAppArama-Linux.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dosyalar
+          merge-multiple: true
+
+      - name: Release olustur
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dosyalar
+          gh release create "${{ github.ref_name }}" dosyalar/* \
+            --repo "${{ github.repository }}" \
+            --title "WhatsApp Arama ${{ github.ref_name }}" \
+            --generate-notes

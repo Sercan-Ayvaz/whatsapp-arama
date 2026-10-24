@@ -112,12 +112,15 @@ class WhatsAppAramaApp:
     # ---------- Başlangıç kontrolü ----------
     def baslangic_kontrolu(self):
         if not tesseract_ayarla():
-            messagebox.showerror(
-                "Tesseract bulunamadı",
-                "OCR motoru (Tesseract) bulunamadı.\n\n"
-                "Programı yeniden kurmayı deneyin. Sorun devam ederse "
-                "program geliştiricisine bildirin.",
-            )
+            if os.name == "nt":
+                mesaj = ("OCR motoru (Tesseract) bulunamadı.\n\n"
+                         "Programı yeniden kurmayı deneyin.")
+            else:
+                mesaj = ("OCR motoru (Tesseract) bulunamadı.\n\n"
+                         "Terminalde şunu çalıştırın:\n"
+                         "sudo apt install tesseract-ocr tesseract-ocr-tur "
+                         "tesseract-ocr-eng")
+            messagebox.showerror("Tesseract bulunamadı", mesaj)
             self.root.destroy()
             sys.exit(1)
 
