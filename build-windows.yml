@@ -1,0 +1,55 @@
+name: Windows Kurulum Dosyasi
+
+on:
+  workflow_dispatch:   # GitHub'da "Run workflow" butonuyla elle calistirilir
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python paketlerini kur
+        run: pip install pyinstaller pytesseract pillow
+
+      - name: Tesseract kur
+        run: choco install tesseract --no-progress -y
+
+      - name: Turkce dil verisini ekle
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tur.traineddata" -OutFile "C:\Program Files\Tesseract-OCR\tessdata\tur.traineddata"
+          Get-ChildItem "C:\Program Files\Tesseract-OCR\tessdata\*.traineddata"
+
+      - name: Uygulamayi derle (PyInstaller)
+        run: pyinstaller --noconfirm --windowed --name WhatsAppArama whatsapp-arama.py
+
+      - name: Tesseract'i uygulamanin yanina kopyala
+        shell: pwsh
+        run: Copy-Item "C:\Program Files\Tesseract-OCR" "dist\WhatsAppArama\tesseract" -Recurse
+
+      - name: Inno Setup kur
+        run: choco install innosetup --no-progress -y
+
+      - name: Kurulum dosyasini olustur
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: Tasinabilir zip olustur
+        shell: pwsh
+        run: Compress-Archive -Path "dist\WhatsAppArama" -DestinationPath "output\WhatsAppArama-Tasinabilir.zip"
+
+      - name: Kurulum dosyasini yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1-Kurulumlu-Setup
+          path: output/WhatsAppArama-Kurulum.exe
+
+      - name: Tasinabilir surumu yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2-Kurulumsuz-Tasinabilir
+          path: output/WhatsAppArama-Tasinabilir.zip
