@@ -24,6 +24,19 @@ def uygulama_klasoru():
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def paketli_ortami_temizle():
+    """
+    PyInstaller (Linux) kendi kütüphanelerini LD_LIBRARY_PATH'e ekler.
+    Sistemdeki tesseract bu kütüphanelerle çöker, bu yüzden eski haline döndürüyoruz.
+    """
+    if getattr(sys, "frozen", False) and sys.platform.startswith("linux"):
+        orijinal = os.environ.get("LD_LIBRARY_PATH_ORIG")
+        if orijinal is not None:
+            os.environ["LD_LIBRARY_PATH"] = orijinal
+        else:
+            os.environ.pop("LD_LIBRARY_PATH", None)
+
+
 def tesseract_ayarla():
     """
     Tesseract'ı sırayla şurada arar:
@@ -32,6 +45,7 @@ def tesseract_ayarla():
       3) Windows'taki yaygın kurulum yolları
     Bulursa True döner.
     """
+    paketli_ortami_temizle()
     ekzeci = "tesseract.exe" if os.name == "nt" else "tesseract"
     adaylar = [
         os.path.join(uygulama_klasoru(), "tesseract", ekzeci),
@@ -124,10 +138,12 @@ class WhatsAppAramaApp:
             self.root.destroy()
             sys.exit(1)
 
+        hata_detay = ""
         try:
             diller = pytesseract.get_languages(config="")
-        except Exception:
+        except Exception as e:
             diller = []
+            hata_detay = f"\n\nTeknik ayrıntı: {e}"
 
         if "tur" in diller and "eng" in diller:
             self.dil = "tur+eng"
@@ -143,7 +159,8 @@ class WhatsAppAramaApp:
         else:
             messagebox.showerror(
                 "Dil verisi yok",
-                "Tesseract dil dosyaları bulunamadı (tessdata klasörü).",
+                "Tesseract dil dosyaları bulunamadı (tessdata klasörü)."
+                + hata_detay,
             )
             self.root.destroy()
             sys.exit(1)
